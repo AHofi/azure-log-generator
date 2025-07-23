@@ -133,8 +133,11 @@ async function handleGenerateLogs(event) {
 
 // Handle burst logs
 async function handleBurstLogs() {
+    console.log('Burst button clicked');
     const duration = parseInt(document.getElementById('burstDuration').value);
     const threadsCount = parseInt(document.getElementById('burstThreads').value);
+    
+    console.log('Burst params:', { duration, threadsCount });
     
     try {
         const response = await fetch('/burst-logs', {
@@ -145,15 +148,20 @@ async function handleBurstLogs() {
             body: JSON.stringify({ duration, threadsCount })
         });
         
+        console.log('Burst response status:', response.status);
+        
         if (response.ok) {
             const result = await response.json();
+            console.log('Burst started:', result);
             showToast('warning', `Burst generation started. Job ID: ${result.jobId}`);
-            refreshStatus();
+            // Force immediate status refresh
+            setTimeout(refreshStatus, 100);
         } else {
             const error = await response.json();
             showToast('error', `Failed to start burst: ${error.error}`);
         }
     } catch (error) {
+        console.error('Burst error:', error);
         showToast('error', `Failed to start burst: ${error.message}`);
     }
 }
@@ -273,13 +281,11 @@ function updateStatusDisplay(status) {
     
     // Update jobs list
     const jobsContainer = document.getElementById('jobsContainer');
-    if (status.activeJobs.length === 0) {
+    if (!status.activeJobs || status.activeJobs.length === 0) {
         jobsContainer.innerHTML = '<p class="text-muted">No active jobs</p>';
     } else {
+        console.log('Active jobs:', status.activeJobs);
         jobsContainer.innerHTML = status.activeJobs.map(job => {
-            const progress = job.parameters.count ? 
-                Math.round((job.logsGenerated / job.parameters.count) * 100) : 0;
-            
             return `
                 <div class="job-item">
                     <div class="d-flex justify-content-between align-items-start">
@@ -287,7 +293,7 @@ function updateStatusDisplay(status) {
                             <div class="job-type">Active Job</div>
                             <div class="job-id">ID: ${job.id.substring(0, 8)}...</div>
                             <div class="job-stats">
-                                ${job.logsGenerated.toLocaleString()} logs generated
+                                ${(job.logsGenerated || 0).toLocaleString()} logs generated
                             </div>
                         </div>
                         <div class="text-end">
