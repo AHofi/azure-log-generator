@@ -237,9 +237,9 @@ async function refreshStatus() {
 // Update status display
 function updateStatusDisplay(status) {
     // Update counters
-    document.getElementById('totalLogs').textContent = status.totalLogs.toLocaleString();
-    document.getElementById('activeJobs').textContent = status.activeJobs.length;
-    document.getElementById('activeThreads').textContent = status.activeThreads;
+    document.getElementById('totalLogs').textContent = (status.statistics?.totalLogsGenerated || 0).toLocaleString();
+    document.getElementById('activeJobs').textContent = (status.activeJobs?.length || 0);
+    document.getElementById('activeThreads').textContent = (status.statistics?.activeThreads || 0);
     
     // Update jobs list
     const jobsContainer = document.getElementById('jobsContainer');
@@ -254,29 +254,16 @@ function updateStatusDisplay(status) {
                 <div class="job-item">
                     <div class="d-flex justify-content-between align-items-start">
                         <div>
-                            <div class="job-type">${job.type.charAt(0).toUpperCase() + job.type.slice(1)} Generation</div>
+                            <div class="job-type">Active Job</div>
                             <div class="job-id">ID: ${job.id.substring(0, 8)}...</div>
                             <div class="job-stats">
                                 ${job.logsGenerated.toLocaleString()} logs generated
-                                ${job.parameters.count ? `of ${job.parameters.count.toLocaleString()}` : ''}
                             </div>
                         </div>
                         <div class="text-end">
                             <small class="text-muted">Started ${getTimeSince(job.startTime)}</small>
                         </div>
                     </div>
-                    ${job.parameters.count ? `
-                        <div class="progress mt-2">
-                            <div class="progress-bar progress-bar-striped progress-bar-animated" 
-                                 role="progressbar" 
-                                 style="width: ${progress}%"
-                                 aria-valuenow="${progress}" 
-                                 aria-valuemin="0" 
-                                 aria-valuemax="100">
-                                ${progress}%
-                            </div>
-                        </div>
-                    ` : ''}
                 </div>
             `;
         }).join('');
@@ -284,15 +271,15 @@ function updateStatusDisplay(status) {
     
     // Update continuous status
     const continuousStatus = document.getElementById('continuousStatus');
-    if (status.continuousRunning) {
+    if (status.continuousJob) {
         continuousRunning = true;
         updateContinuousButton();
         continuousStatus.className = 'alert alert-success running';
         continuousStatus.innerHTML = `
             <i class="bi bi-play-circle pulse"></i> 
-            Running at ${status.continuousLogsPerSecond} logs/second
+            Running at ${status.continuousJob.logsPerSecond} logs/second
             <br>
-            <small>${status.continuousLogsGenerated.toLocaleString()} logs generated</small>
+            <small>${status.continuousJob.logsGenerated.toLocaleString()} logs generated</small>
         `;
     } else {
         continuousRunning = false;
