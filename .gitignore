@@ -1,0 +1,47 @@
+# Dependencies
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Environment files
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Build output
+dist/
+build/
+*.log
+
+# Test coverage
+coverage/
+.nyc_output/
+
+# Azure
+.deployment
+local.settings.json
+*.PublishSettings
+*.pubxml
+*.azurewebsites.net
+
+# Application Insights
+ai-logs/
+
+# Temporary files
+temp/
+tmp/
+*.tmp

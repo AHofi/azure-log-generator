@@ -1,0 +1,197 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+  "contentVersion": "1.0.0.0",
+  "parameters": {
+    "appServiceName": {
+      "type": "string",
+      "defaultValue": "app-log-generator",
+      "metadata": {
+        "description": "Name of the App Service"
+      }
+    },
+    "appServicePlanName": {
+      "type": "string",
+      "defaultValue": "[concat('plan-', parameters('appServiceName'))]",
+      "metadata": {
+        "description": "Name of the App Service Plan"
+      }
+    },
+    "appInsightsName": {
+      "type": "string",
+      "defaultValue": "[concat('ai-', parameters('appServiceName'))]",
+      "metadata": {
+        "description": "Name of Application Insights resource"
+      }
+    },
+    "logAnalyticsWorkspaceName": {
+      "type": "string",
+      "defaultValue": "[concat('law-', parameters('appServiceName'))]",
+      "metadata": {
+        "description": "Name of Log Analytics Workspace"
+      }
+    },
+    "location": {
+      "type": "string",
+      "defaultValue": "[resourceGroup().location]",
+      "metadata": {
+        "description": "Location for all resources"
+      }
+    },
+    "skuName": {
+      "type": "string",
+      "defaultValue": "B1",
+      "allowedValues": [
+        "F1",
+        "B1",
+        "B2",
+        "B3",
+        "S1",
+        "S2",
+        "S3"
+      ],
+      "metadata": {
+        "description": "SKU name for the App Service Plan"
+      }
+    },
+    "dailyCapGB": {
+      "type": "int",
+      "defaultValue": 1,
+      "metadata": {
+        "description": "Daily cap in GB for Application Insights"
+      }
+    }
+  },
+  "variables": {
+    "appServicePlanId": "[resourceId('Microsoft.Web/serverfarms', parameters('appServicePlanName'))]",
+    "appInsightsId": "[resourceId('Microsoft.Insights/components', parameters('appInsightsName'))]",
+    "logAnalyticsId": "[resourceId('Microsoft.OperationalInsights/workspaces', parameters('logAnalyticsWorkspaceName'))]"
+  },
+  "resources": [
+    {
+      "type": "Microsoft.OperationalInsights/workspaces",
+      "apiVersion": "2022-10-01",
+      "name": "[parameters('logAnalyticsWorkspaceName')]",
+      "location": "[parameters('location')]",
+      "properties": {
+        "sku": {
+          "name": "PerGB2018"
+        },
+        "retentionInDays": 30,
+        "features": {
+          "enableLogAccessUsingOnlyResourcePermissions": true
+        },
+        "workspaceCapping": {
+          "dailyQuotaGb": "[parameters('dailyCapGB')]"
+        }
+      }
+    },
+    {
+      "type": "Microsoft.Insights/components",
+      "apiVersion": "2020-02-02",
+      "name": "[parameters('appInsightsName')]",
+      "location": "[parameters('location')]",
+      "dependsOn": [
+        "[variables('logAnalyticsId')]"
+      ],
+      "kind": "web",
+      "properties": {
+        "Application_Type": "web",
+        "WorkspaceResourceId": "[variables('logAnalyticsId')]",
+        "IngestionMode": "LogAnalytics",
+        "publicNetworkAccessForIngestion": "Enabled",
+        "publicNetworkAccessForQuery": "Enabled"
+      }
+    },
+    {
+      "type": "Microsoft.Web/serverfarms",
+      "apiVersion": "2022-03-01",
+      "name": "[parameters('appServicePlanName')]",
+      "location": "[parameters('location')]",
+      "sku": {
+        "name": "[parameters('skuName')]"
+      },
+      "kind": "linux",
+      "properties": {
+        "reserved": true
+      }
+    },
+    {
+      "type": "Microsoft.Web/sites",
+      "apiVersion": "2022-03-01",
+      "name": "[parameters('appServiceName')]",
+      "location": "[parameters('location')]",
+      "dependsOn": [
+        "[variables('appServicePlanId')]",
+        "[variables('appInsightsId')]"
+      ],
+      "kind": "app,linux",
+      "properties": {
+        "serverFarmId": "[variables('appServicePlanId')]",
+        "siteConfig": {
+          "linuxFxVersion": "NODE|18-lts",
+          "appSettings": [
+            {
+              "name": "APPLICATIONINSIGHTS_CONNECTION_STRING",
+              "value": "[reference(variables('appInsightsId'), '2020-02-02').ConnectionString]"
+            },
+            {
+              "name": "ApplicationInsightsAgent_EXTENSION_VERSION",
+              "value": "~3"
+            },
+            {
+              "name": "XDT_MicrosoftApplicationInsights_Mode",
+              "value": "recommended"
+            },
+            {
+              "name": "WEBSITE_NODE_DEFAULT_VERSION",
+              "value": "~18"
+            },
+            {
+              "name": "APP_INSIGHTS_DAILY_CAP_GB",
+              "value": "[string(parameters('dailyCapGB'))]"
+            },
+            {
+              "name": "ENABLE_CUSTOM_METRICS",
+              "value": "true"
+            },
+            {
+              "name": "ENABLE_CUSTOM_EVENTS",
+              "value": "true"
+            },
+            {
+              "name": "ENABLE_DEPENDENCIES_TRACKING",
+              "value": "true"
+            },
+            {
+              "name": "NODE_ENV",
+              "value": "production"
+            }
+          ],
+          "alwaysOn": "[if(equals(parameters('skuName'), 'F1'), json('false'), json('true'))]",
+          "ftpsState": "Disabled",
+          "minTlsVersion": "1.2",
+          "http20Enabled": true
+        },
+        "httpsOnly": true
+      }
+    }
+  ],
+  "outputs": {
+    "appServiceUrl": {
+      "type": "string",
+      "value": "[concat('https://', reference(resourceId('Microsoft.Web/sites', parameters('appServiceName'))).defaultHostName)]"
+    },
+    "appInsightsConnectionString": {
+      "type": "string",
+      "value": "[reference(variables('appInsightsId'), '2020-02-02').ConnectionString]"
+    },
+    "appInsightsInstrumentationKey": {
+      "type": "string",
+      "value": "[reference(variables('appInsightsId'), '2020-02-02').InstrumentationKey]"
+    },
+    "logAnalyticsWorkspaceId": {
+      "type": "string",
+      "value": "[reference(variables('logAnalyticsId'), '2022-10-01').customerId]"
+    }
+  }
+}

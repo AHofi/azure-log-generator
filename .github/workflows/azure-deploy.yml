@@ -1,0 +1,104 @@
+name: Deploy to Azure App Service
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:
+
+env:
+  AZURE_WEBAPP_NAME: 'app-log-generator'    # Set this to your app service name
+  AZURE_WEBAPP_PACKAGE_PATH: '.'            # Set this to the path to your web app project
+  NODE_VERSION: '18.x'                      # Set this to the node version to use
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Set up Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: ${{ env.NODE_VERSION }}
+        cache: 'npm'
+
+    - name: npm install, build, and test
+      run: |
+        npm ci
+        npm run test --if-present
+
+    - name: Zip artifact for deployment
+      run: zip release.zip ./* -r
+
+    - name: Upload artifact for deployment job
+      uses: actions/upload-artifact@v4
+      with:
+        name: node-app
+        path: release.zip
+
+  deploy:
+    runs-on: ubuntu-latest
+    needs: build
+    environment:
+      name: 'production'
+      url: ${{ steps.deploy-to-webapp.outputs.webapp-url }}
+    if: github.event_name != 'pull_request'
+
+    steps:
+    - name: Download artifact from build job
+      uses: actions/download-artifact@v4
+      with:
+        name: node-app
+
+    - name: Unzip artifact for deployment
+      run: unzip release.zip
+
+    - name: 'Deploy to Azure WebApp'
+      id: deploy-to-webapp
+      uses: azure/webapps-deploy@v3
+      with:
+        app-name: ${{ env.AZURE_WEBAPP_NAME }}
+        slot-name: 'production'
+        publish-profile: ${{ secrets.AZURE_WEBAPP_PUBLISH_PROFILE }}
+        package: ${{ env.AZURE_WEBAPP_PACKAGE_PATH }}
+
+    - name: 'Azure CLI - Configure App Settings'
+      uses: azure/CLI@v1
+      with:
+        azcliversion: 2.54.0
+        inlineScript: |
+          az webapp config appsettings set \
+            --resource-group ${{ secrets.AZURE_RESOURCE_GROUP }} \
+            --name ${{ env.AZURE_WEBAPP_NAME }} \
+            --settings \
+              APPLICATIONINSIGHTS_CONNECTION_STRING="${{ secrets.APPLICATIONINSIGHTS_CONNECTION_STRING }}" \
+              APP_INSIGHTS_DAILY_CAP_GB="${{ vars.APP_INSIGHTS_DAILY_CAP_GB }}" \
+              ENABLE_CUSTOM_METRICS="true" \
+              ENABLE_CUSTOM_EVENTS="true" \
+              ENABLE_DEPENDENCIES_TRACKING="true" \
+              NODE_ENV="production"
+
+  # Optional: Deploy infrastructure using ARM template
+  deploy-infrastructure:
+    runs-on: ubuntu-latest
+    if: github.event.inputs.deploy_infrastructure == 'true'
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Azure Login
+      uses: azure/login@v1
+      with:
+        creds: ${{ secrets.AZURE_CREDENTIALS }}
+    
+    - name: Deploy ARM Template
+      uses: azure/arm-deploy@v1
+      with:
+        subscriptionId: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+        resourceGroupName: ${{ secrets.AZURE_RESOURCE_GROUP }}
+        template: ./azure/azuredeploy.json
+        parameters: ./azure/azuredeploy.parameters.json appServiceName=${{ env.AZURE_WEBAPP_NAME }}
+        deploymentMode: Incremental
