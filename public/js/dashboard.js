@@ -24,14 +24,24 @@ document.addEventListener('DOMContentLoaded', () => {
 // Check server connection
 async function checkConnection() {
     try {
-        const response = await fetch('/health');
+        const response = await fetch('/health', {
+            method: 'GET',
+            headers: {
+                'Accept': 'application/json',
+            },
+            cache: 'no-cache'
+        });
         if (response.ok) {
             setConnectionStatus(true);
+            return true;
         } else {
             setConnectionStatus(false);
+            return false;
         }
     } catch (error) {
+        console.error('Connection check failed:', error);
         setConnectionStatus(false);
+        return false;
     }
 }
 
@@ -44,6 +54,8 @@ function setConnectionStatus(connected) {
         statusIcon.classList.remove('disconnected');
         statusIcon.classList.add('connected');
         statusText.textContent = 'Connected';
+        // Reset retry counter on successful connection
+        window.connectionRetries = 0;
     } else {
         statusIcon.classList.remove('connected');
         statusIcon.classList.add('disconnected');
@@ -222,15 +234,33 @@ function startStatusRefresh() {
 // Refresh status
 async function refreshStatus() {
     try {
-        const response = await fetch('/status');
+        const response = await fetch('/status', {
+            method: 'GET',
+            headers: {
+                'Accept': 'application/json',
+            },
+            cache: 'no-cache'
+        });
+        
         if (response.ok) {
             const status = await response.json();
             updateStatusDisplay(status);
-            checkConnection();
+            setConnectionStatus(true);
+        } else {
+            throw new Error(`HTTP ${response.status}`);
         }
     } catch (error) {
         console.error('Failed to refresh status:', error);
-        setConnectionStatus(false);
+        // Only set disconnected if multiple failures
+        if (!window.connectionRetries) window.connectionRetries = 0;
+        window.connectionRetries++;
+        
+        if (window.connectionRetries > 2) {
+            setConnectionStatus(false);
+        }
+        
+        // Try to reconnect
+        setTimeout(checkConnection, 2000);
     }
 }
 
