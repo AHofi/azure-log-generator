@@ -222,31 +222,42 @@ app.use((req, res) => {
   });
 });
 
-// Start server
-const server = app.listen(PORT, () => {
-  console.log(`Azure Log Generator started on port ${PORT}`);
-  console.log(`Environment: ${process.env.NODE_ENV || 'development'}`);
-  console.log(`Application Insights: ${process.env.APPLICATIONINSIGHTS_CONNECTION_STRING ? 'Configured' : 'Not configured'}`);
-});
+// Start server only if not in test environment
+let server;
+if (process.env.NODE_ENV !== 'test') {
+  server = app.listen(PORT, () => {
+    console.log(`Azure Log Generator started on port ${PORT}`);
+    console.log(`Environment: ${process.env.NODE_ENV || 'development'}`);
+    console.log(`Application Insights: ${process.env.APPLICATIONINSIGHTS_CONNECTION_STRING ? 'Configured' : 'Not configured'}`);
+  });
+}
 
 // Graceful shutdown
 process.on('SIGTERM', () => {
   console.log('SIGTERM received, shutting down gracefully...');
   logGenerator.stopAll().then(() => {
-    server.close(() => {
-      console.log('Server closed');
+    if (server) {
+      server.close(() => {
+        console.log('Server closed');
+        process.exit(0);
+      });
+    } else {
       process.exit(0);
-    });
+    }
   });
 });
 
 process.on('SIGINT', () => {
   console.log('SIGINT received, shutting down gracefully...');
   logGenerator.stopAll().then(() => {
-    server.close(() => {
-      console.log('Server closed');
+    if (server) {
+      server.close(() => {
+        console.log('Server closed');
+        process.exit(0);
+      });
+    } else {
       process.exit(0);
-    });
+    }
   });
 });
 
