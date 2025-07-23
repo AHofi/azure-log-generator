@@ -36,9 +36,12 @@ function initializeAppInsights() {
     return true;
   });
 
-  // Disable sampling to ensure 100% of telemetry is sent
-  appInsights.defaultClient.config.samplingPercentage = 100;
-  console.log('Application Insights sampling disabled - sending 100% of telemetry');
+  // Configure sampling if needed (to control volume)
+  const samplingPercentage = process.env.AI_SAMPLING_PERCENTAGE;
+  if (samplingPercentage) {
+    appInsights.defaultClient.config.samplingPercentage = parseFloat(samplingPercentage);
+    console.log(`Application Insights sampling set to ${samplingPercentage}%`);
+  }
 
   // Configure batching for better performance
   appInsights.defaultClient.config.maxBatchSize = 250;

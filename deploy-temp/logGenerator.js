@@ -167,8 +167,8 @@ class LogGenerator {
         await this.sleep(interval);
       }
 
-      // Flush every 5000 logs to improve performance
-      if (i % 5000 === 0) {
+      // Flush every 100 logs to ensure they're sent
+      if (i % 100 === 0) {
         appInsights.defaultClient.flush();
       }
     }
@@ -211,50 +211,36 @@ class LogGenerator {
   }
 
   async _burstThread(job, threadId) {
-    const batchSize = 100; // Process 100 logs at a time
-    
-    const processBatch = () => {
-      if (job.status !== 'running') return;
-      
-      // Process a batch of logs
-      for (let i = 0; i < batchSize && job.status === 'running'; i++) {
-        const message = this.generateMessage(1024);
-        this.logMessage('info', message, { 
-          jobId: job.id, 
-          threadId, 
-          burst: true 
+    while (job.status === 'running') {
+      const message = this.generateMessage(1024);
+      this.logMessage('info', message, { 
+        jobId: job.id, 
+        threadId, 
+        burst: true 
+      });
+      job.logsGenerated++;
+
+      // Generate metrics and events at high rate
+      if (Math.random() < 0.5) {
+        this.generateMetric(`burst_metric_${threadId}`, Math.random() * 1000, { 
+          jobId: job.id,
+          threadId 
         });
-        job.logsGenerated++;
-
-        // Generate metrics and events at high rate
-        if (Math.random() < 0.5) {
-          this.generateMetric(`burst_metric_${threadId}`, Math.random() * 1000, { 
-            jobId: job.id,
-            threadId 
-          });
-        }
-
-        if (Math.random() < 0.3) {
-          this.generateEvent(`burst_event_${threadId}`, { 
-            jobId: job.id,
-            threadId 
-          });
-        }
       }
 
-      // Flush every 5000 logs instead of 1000
-      if (job.logsGenerated % 5000 === 0) {
+      if (Math.random() < 0.3) {
+        this.generateEvent(`burst_event_${threadId}`, { 
+          jobId: job.id,
+          threadId 
+        });
+      }
+
+      // Minimal delay to prevent blocking
+      if (job.logsGenerated % 1000 === 0) {
+        await this.sleep(1);
         appInsights.defaultClient.flush();
       }
-
-      // Use setImmediate to yield control back to event loop
-      if (job.status === 'running') {
-        setImmediate(processBatch);
-      }
-    };
-
-    // Start the batch processing
-    processBatch();
+    }
   }
 
   // Continuous log generation
@@ -297,8 +283,8 @@ class LogGenerator {
           });
         }
 
-        // Flush periodically - reduced frequency for better performance
-        if (this.continuousJob.logsGenerated % 5000 === 0) {
+        // Flush periodically
+        if (this.continuousJob.logsGenerated % 100 === 0) {
           appInsights.defaultClient.flush();
         }
       }

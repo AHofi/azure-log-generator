@@ -17,31 +17,18 @@ const app = express();
 const PORT = process.env.PORT || 8080;
 
 // Middleware
-app.use(helmet({
-  contentSecurityPolicy: {
-    directives: {
-      defaultSrc: ["'self'"],
-      styleSrc: ["'self'", "'unsafe-inline'", "https://cdn.jsdelivr.net"],
-      scriptSrc: ["'self'", "'unsafe-inline'", "https://cdn.jsdelivr.net"],
-      fontSrc: ["'self'", "https://cdn.jsdelivr.net"],
-      imgSrc: ["'self'", "data:"],
-    }
-  }
-}));
+app.use(helmet());
 app.use(cors());
 app.use(compression());
 app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({ extended: true }));
 app.use(morgan('combined'));
 
-// Serve static files from public directory
-app.use(express.static('public'));
-
 // Initialize log generator
 const logGenerator = new LogGenerator();
 
 // Health check endpoint
-app.get('/health', (req, res) => {
+app.get('/', (req, res) => {
   res.json({
     status: 'healthy',
     service: 'Azure Log Generator',
@@ -119,8 +106,8 @@ app.post('/burst-logs', async (req, res) => {
       return res.status(400).json({ error: 'Duration must be between 1,000 and 300,000 ms (5 minutes)' });
     }
 
-    if (threadsCount < 1 || threadsCount > 10) {
-      return res.status(400).json({ error: 'Thread count must be between 1 and 10' });
+    if (threadsCount < 1 || threadsCount > 50) {
+      return res.status(400).json({ error: 'Thread count must be between 1 and 50' });
     }
 
     const jobId = uuidv4();
@@ -222,42 +209,31 @@ app.use((req, res) => {
   });
 });
 
-// Start server only if not in test environment
-let server;
-if (process.env.NODE_ENV !== 'test') {
-  server = app.listen(PORT, () => {
-    console.log(`Azure Log Generator started on port ${PORT}`);
-    console.log(`Environment: ${process.env.NODE_ENV || 'development'}`);
-    console.log(`Application Insights: ${process.env.APPLICATIONINSIGHTS_CONNECTION_STRING ? 'Configured' : 'Not configured'}`);
-  });
-}
+// Start server
+const server = app.listen(PORT, () => {
+  console.log(`Azure Log Generator started on port ${PORT}`);
+  console.log(`Environment: ${process.env.NODE_ENV || 'development'}`);
+  console.log(`Application Insights: ${process.env.APPLICATIONINSIGHTS_CONNECTION_STRING ? 'Configured' : 'Not configured'}`);
+});
 
 // Graceful shutdown
 process.on('SIGTERM', () => {
   console.log('SIGTERM received, shutting down gracefully...');
   logGenerator.stopAll().then(() => {
-    if (server) {
-      server.close(() => {
-        console.log('Server closed');
-        process.exit(0);
-      });
-    } else {
+    server.close(() => {
+      console.log('Server closed');
       process.exit(0);
-    }
+    });
   });
 });
 
 process.on('SIGINT', () => {
   console.log('SIGINT received, shutting down gracefully...');
   logGenerator.stopAll().then(() => {
-    if (server) {
-      server.close(() => {
-        console.log('Server closed');
-        process.exit(0);
-      });
-    } else {
+    server.close(() => {
+      console.log('Server closed');
       process.exit(0);
-    }
+    });
   });
 });
 
