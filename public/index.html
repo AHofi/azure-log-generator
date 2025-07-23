@@ -1,0 +1,225 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Azure Log Generator Dashboard</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css" rel="stylesheet">
+    <link href="/css/style.css" rel="stylesheet">
+</head>
+<body>
+    <nav class="navbar navbar-dark bg-primary">
+        <div class="container-fluid">
+            <span class="navbar-brand mb-0 h1">
+                <i class="bi bi-graph-up"></i> Azure Log Generator Dashboard
+            </span>
+            <span class="navbar-text text-white">
+                <i class="bi bi-circle-fill" id="connectionStatus"></i> 
+                <span id="connectionText">Checking...</span>
+            </span>
+        </div>
+    </nav>
+
+    <div class="container-fluid mt-4">
+        <div class="row">
+            <!-- Control Panel -->
+            <div class="col-md-6">
+                <div class="card mb-4">
+                    <div class="card-header bg-primary text-white">
+                        <h5 class="mb-0"><i class="bi bi-sliders"></i> Log Generation Controls</h5>
+                    </div>
+                    <div class="card-body">
+                        <!-- Generate Logs Form -->
+                        <form id="generateLogsForm">
+                            <h6>Generate Logs</h6>
+                            <div class="row mb-3">
+                                <div class="col-md-6">
+                                    <label for="logCount" class="form-label">Number of Logs</label>
+                                    <input type="number" class="form-control" id="logCount" min="1" max="1000000" value="1000" required>
+                                </div>
+                                <div class="col-md-6">
+                                    <label for="logInterval" class="form-label">Interval (ms)</label>
+                                    <input type="number" class="form-control" id="logInterval" min="0" max="60000" value="100" required>
+                                </div>
+                            </div>
+                            <div class="row mb-3">
+                                <div class="col-md-6">
+                                    <label for="logLevel" class="form-label">Log Level</label>
+                                    <select class="form-control" id="logLevel">
+                                        <option value="trace">Trace</option>
+                                        <option value="info" selected>Info</option>
+                                        <option value="warning">Warning</option>
+                                        <option value="error">Error</option>
+                                        <option value="critical">Critical</option>
+                                    </select>
+                                </div>
+                                <div class="col-md-6">
+                                    <label for="messageSize" class="form-label">Message Size (bytes)</label>
+                                    <input type="number" class="form-control" id="messageSize" min="1" max="10000" value="1024">
+                                </div>
+                            </div>
+                            <div class="row mb-3">
+                                <div class="col-md-6">
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="checkbox" id="includeMetrics" checked>
+                                        <label class="form-check-label" for="includeMetrics">
+                                            Include Metrics
+                                        </label>
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="checkbox" id="includeEvents" checked>
+                                        <label class="form-check-label" for="includeEvents">
+                                            Include Events
+                                        </label>
+                                    </div>
+                                </div>
+                            </div>
+                            <button type="submit" class="btn btn-primary w-100">
+                                <i class="bi bi-play-fill"></i> Generate Logs
+                            </button>
+                        </form>
+
+                        <hr class="my-4">
+
+                        <!-- Burst Mode -->
+                        <div class="mb-3">
+                            <h6>Burst Mode</h6>
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <label for="burstDuration" class="form-label">Duration (ms)</label>
+                                    <input type="number" class="form-control" id="burstDuration" min="1000" max="300000" value="60000">
+                                </div>
+                                <div class="col-md-6">
+                                    <label for="burstThreads" class="form-label">Threads</label>
+                                    <input type="number" class="form-control" id="burstThreads" min="1" max="50" value="10">
+                                </div>
+                            </div>
+                            <button class="btn btn-warning w-100 mt-2" id="burstLogsBtn">
+                                <i class="bi bi-lightning-fill"></i> Start Burst Generation
+                            </button>
+                        </div>
+
+                        <hr class="my-4">
+
+                        <!-- Continuous Mode -->
+                        <div class="mb-3">
+                            <h6>Continuous Mode</h6>
+                            <div class="mb-2">
+                                <label for="logsPerSecond" class="form-label">Logs per Second</label>
+                                <input type="number" class="form-control" id="logsPerSecond" min="1" max="10000" value="100">
+                            </div>
+                            <button class="btn btn-success w-100" id="continuousToggleBtn">
+                                <i class="bi bi-arrow-repeat"></i> Start Continuous Generation
+                            </button>
+                        </div>
+
+                        <hr class="my-4">
+
+                        <!-- Emergency Stop -->
+                        <button class="btn btn-danger w-100" id="stopAllBtn">
+                            <i class="bi bi-stop-circle-fill"></i> Stop All Generation
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Status Panel -->
+            <div class="col-md-6">
+                <div class="card mb-4">
+                    <div class="card-header bg-info text-white">
+                        <h5 class="mb-0"><i class="bi bi-activity"></i> Current Status</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="row text-center mb-3">
+                            <div class="col-md-4">
+                                <div class="stat-box">
+                                    <h3 id="totalLogs" class="text-primary">0</h3>
+                                    <p class="mb-0">Total Logs</p>
+                                </div>
+                            </div>
+                            <div class="col-md-4">
+                                <div class="stat-box">
+                                    <h3 id="activeJobs" class="text-success">0</h3>
+                                    <p class="mb-0">Active Jobs</p>
+                                </div>
+                            </div>
+                            <div class="col-md-4">
+                                <div class="stat-box">
+                                    <h3 id="activeThreads" class="text-warning">0</h3>
+                                    <p class="mb-0">Active Threads</p>
+                                </div>
+                            </div>
+                        </div>
+
+                        <h6>Active Jobs</h6>
+                        <div id="jobsContainer" class="mb-3">
+                            <p class="text-muted">No active jobs</p>
+                        </div>
+
+                        <h6>Continuous Generation</h6>
+                        <div id="continuousStatus" class="alert alert-secondary">
+                            <i class="bi bi-pause-circle"></i> Not running
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Application Insights Configuration -->
+                <div class="card">
+                    <div class="card-header bg-success text-white">
+                        <h5 class="mb-0"><i class="bi bi-gear"></i> Application Insights Configuration</h5>
+                    </div>
+                    <div class="card-body">
+                        <table class="table table-sm">
+                            <tbody>
+                                <tr>
+                                    <td><strong>Connection Status:</strong></td>
+                                    <td id="aiConnectionStatus">Loading...</td>
+                                </tr>
+                                <tr>
+                                    <td><strong>Daily Cap (GB):</strong></td>
+                                    <td id="aiDailyCap">Loading...</td>
+                                </tr>
+                                <tr>
+                                    <td><strong>Custom Metrics:</strong></td>
+                                    <td id="aiCustomMetrics">Loading...</td>
+                                </tr>
+                                <tr>
+                                    <td><strong>Custom Events:</strong></td>
+                                    <td id="aiCustomEvents">Loading...</td>
+                                </tr>
+                                <tr>
+                                    <td><strong>Dependencies Tracking:</strong></td>
+                                    <td id="aiDependencies">Loading...</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                        <a href="https://portal.azure.com/#blade/HubsExtension/BrowseResource/resourceType/microsoft.insights%2Fcomponents" 
+                           target="_blank" class="btn btn-sm btn-outline-primary">
+                            <i class="bi bi-box-arrow-up-right"></i> View in Azure Portal
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Toast Container -->
+    <div class="toast-container position-fixed bottom-0 end-0 p-3">
+        <div id="notificationToast" class="toast" role="alert">
+            <div class="toast-header">
+                <strong class="me-auto">Notification</strong>
+                <button type="button" class="btn-close" data-bs-dismiss="toast"></button>
+            </div>
+            <div class="toast-body" id="toastMessage">
+                Message
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="/js/dashboard.js"></script>
+</body>
+</html>
